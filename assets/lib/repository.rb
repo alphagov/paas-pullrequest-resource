@@ -8,10 +8,8 @@ class Repository
     @name = name
   end
 
-  def pull_requests(base: nil)
-    @pull_requests ||= Octokit.pulls(name, pulls_options(base: base)).map do |pr|
-      PullRequest.new(repo: self, pr: pr)
-    end
+  def pull_requests(base: nil, disallow_forks: false)
+    @pull_requests ||= load_pull_requests(base: base, disallow_forks: disallow_forks)
   end
 
   def pull_request(id:)
@@ -19,20 +17,30 @@ class Repository
     PullRequest.new(repo: self, pr: pr)
   end
 
-  def next_pull_request(id: nil, sha: nil, base: nil)
-    return if pull_requests(base: base).empty?
+  def next_pull_request(id: nil, sha: nil, base: nil, disallow_forks: false)
+    return if pull_requests(base: base, disallow_forks: disallow_forks).empty?
 
     if id && sha
-      current = pull_requests.find { |pr| pr.equals?(id: id, sha: sha) }
+      current = pull_requests(disallow_forks: disallow_forks).find { |pr| pr.equals?(id: id, sha: sha) }
       return if current && current.ready?
     end
 
-    pull_requests.find do |pr|
+    pull_requests(disallow_forks: disallow_forks).find do |pr|
       pr != current && pr.ready?
     end
   end
 
   private
+
+  def load_pull_requests(base: nil, disallow_forks: false)
+    pulls = Octokit.pulls(name, pulls_options(base: base)).map do |pr|
+      PullRequest.new(repo: self, pr: pr)
+    end
+    if disallow_forks
+      pulls = pulls.select { |pr| !pr.from_fork? }
+    end
+    pulls
+  end
 
   def pulls_options(base: nil)
     base ? default_opts.merge(base: base) : default_opts

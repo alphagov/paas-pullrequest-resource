@@ -69,8 +69,9 @@ describe Commands::Check do
         stub_json(
           'https://api.github.com:443/repos/jtarchie/test/pulls?direction=asc&per_page=100&sort=updated&state=open',
           [
-            { number: 1, head: { sha: 'abcdef' } },
-            { number: 2, head: { sha: 'zyxwvu' } }
+            { number: 1, head: { sha: 'abcdef', repo: { full_name: 'jtarchie/test' } }, base: { repo: { full_name: 'jtarchie/test' } } },
+            { number: 3, head: { sha: 'ghijkl', repo: { full_name: 'jtarchie/test' } }, base: { repo: { full_name: 'jtarchie/test' } } },
+            { number: 2, head: { sha: 'zyxwvu', repo: { full_name: 'someother/repo' } }, base: { repo: { full_name: 'jtarchie/test' } } },
           ]
         )
       end
@@ -78,7 +79,15 @@ describe Commands::Check do
       it 'returns all PRs oldest to newest last' do
         expect(check('source' => { 'repo' => 'jtarchie/test', 'every' => true }, 'version' => {})).to eq [
           { 'ref' => 'abcdef', 'pr' => '1' },
-          { 'ref' => 'zyxwvu', 'pr' => '2' }
+          { 'ref' => 'ghijkl', 'pr' => '3' },
+          { 'ref' => 'zyxwvu', 'pr' => '2' },
+        ]
+      end
+
+      it 'filters out PRs from forked repos when requested' do
+        expect(check('source' => { 'repo' => 'jtarchie/test', 'every' => true, 'disallow_forks' => true }, 'version' => {})).to eq [
+          { 'ref' => 'abcdef', 'pr' => '1' },
+          { 'ref' => 'ghijkl', 'pr' => '3' },
         ]
       end
     end
@@ -158,9 +167,11 @@ describe Commands::Check do
 
     context 'when there is more than one open pull request' do
       before do
+        stub_json('https://api.github.com/repos/jtarchie/test/statuses/abcdef', [])
+        stub_json('https://api.github.com/repos/jtarchie/test/statuses/zyxwvu', [])
         stub_json('https://api.github.com/repos/jtarchie/test/pulls?direction=asc&per_page=100&sort=updated&state=open', [
-                    { number: 2, head: { sha: 'zyxwvu' } },
-                    { number: 1, head: { sha: 'abcdef' } }
+                    { number: 2, head: { sha: 'zyxwvu', repo: { full_name: 'someotherowner/repo' } }, base: { repo: { full_name: 'jtarchie/test' } } },
+                    { number: 1, head: { sha: 'abcdef', repo: { full_name: 'jtarchie/test' } }, base: { repo: { full_name: 'jtarchie/test' } } },
                   ])
       end
 
@@ -183,6 +194,18 @@ describe Commands::Check do
           stub_json('https://api.github.com:443/repos/jtarchie/test/statuses/zyxwvu', [{ state: 'pending', context: 'concourse-ci' }])
 
           expect(check(payload)).to eq []
+        end
+      end
+
+      context 'and `disallow_forks` is not set' do
+        it 'returns the most recently updated pull request' do
+          expect(check('source' => { 'repo' => 'jtarchie/test' })).to eq [{ 'ref' => 'zyxwvu', 'pr' => '2' }]
+        end
+      end
+
+      context 'and `disallow_forks` is set to true' do
+        it 'returns the most recently updated internal pull request' do
+          expect(check('source' => { 'repo' => 'jtarchie/test', 'disallow_forks' => true })).to eq [{ 'ref' => 'abcdef', 'pr' => '1' }]
         end
       end
     end
