@@ -8,8 +8,8 @@ class Repository
     @name = name
   end
 
-  def pull_requests(args = {})
-    @pull_requests ||= Octokit.pulls(name, pulls_options(args)).map do |pr|
+  def pull_requests(base: nil)
+    @pull_requests ||= Octokit.pulls(name, pulls_options(base: base)).map do |pr|
       PullRequest.new(repo: self, pr: pr)
     end
   end
