@@ -73,6 +73,8 @@ concourse version 1.2.x and higher and the [`version: every`](http://concourse.c
   See the [`git-config(1)` manual page](https://www.kernel.org/pub/software/scm/git/docs/git-config.html)
   for more information and documentation of existing git options.
 
+* `disallow_forks`: *Optional*. If set to `true` it will only detect pull requests raised from within the same repository. Pull requests from forks will not generate new versions of the resource within Concourse. The default value is `false`.
+
 ## Behavior
 
 ### `check`: Check for new pull requests
